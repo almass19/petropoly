@@ -7,13 +7,11 @@ import type { FullGameData } from '@/types/game';
 import type { Player } from '@/types/player';
 import Lobby from '@/components/game/Lobby';
 import Board from '@/components/board/Board';
-import PlayerPanel from '@/components/game/PlayerPanel';
-import ActionPanel from '@/components/game/ActionPanel';
 import { THEME } from '@/lib/game/theme';
 
-function getSession(): { id: string } {
-  if (typeof window === 'undefined') return { id: '' };
-  return { id: localStorage.getItem('petropolia_session') ?? '' };
+function getSession(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('petropolia_session') ?? '';
 }
 
 export default function RoomPage({ params }: { params: Promise<{ code: string }> }) {
@@ -31,7 +29,7 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   }, [code, router]);
 
   useEffect(() => {
-    const { id } = getSession();
+    const id = getSession();
     if (!id) { router.push('/'); return; }
     setSessionId(id);
     fetchData().finally(() => setLoading(false));
@@ -42,10 +40,10 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     const supabase = createClient();
     const channel = supabase
       .channel(`room:${data.room.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_states', filter: `room_id=eq.${data.room.id}` }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${data.room.id}` }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'property_ownership', filter: `room_id=eq.${data.room.id}` }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${data.room.id}` }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_states',        filter: `room_id=eq.${data.room.id}` }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players',             filter: `room_id=eq.${data.room.id}` }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'property_ownership',  filter: `room_id=eq.${data.room.id}` }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms',               filter: `id=eq.${data.room.id}` }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [data?.room?.id, fetchData]);
@@ -103,70 +101,28 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
   }
 
   return (
-    <div className="h-screen flex flex-col lg:flex-row overflow-hidden" style={{ backgroundColor: '#0a0f1e' }}>
-
-      {/* Доска */}
-      <div className="flex-1 flex items-center justify-center p-2 sm:p-4 min-h-0 overflow-hidden">
-        <Board
-          players={players}
-          properties={properties}
-          gameState={gameState}
-          myPlayer={myPlayer}
-          isMyTurn={isMyTurn}
-          onAction={handleAction}
-        />
-      </div>
-
-      {/* Правая панель */}
-      <div
-        className="w-full lg:w-80 xl:w-96 shrink-0 flex flex-col gap-3 p-4 overflow-y-auto lg:h-screen"
-        style={{ backgroundColor: '#111827', borderLeft: '1px solid rgba(255,255,255,0.06)' }}
-      >
-        {/* Заголовок */}
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <h1 className="text-lg font-black text-white tracking-tight">{THEME.boardName}</h1>
-            <p className="text-xs text-white/30 font-mono tracking-widest">{room.code}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-white/30">ход</div>
-            <div className="text-sm font-bold text-white">
-              {currentPlayer?.name ?? '—'}
-            </div>
-          </div>
+    <div
+      className="w-screen h-screen overflow-hidden flex items-center justify-center"
+      style={{ backgroundColor: '#0a0f1e' }}
+    >
+      {/* Error toast */}
+      {actionError && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl text-sm font-bold text-white shadow-2xl"
+          style={{ backgroundColor: '#dc2626', border: '1px solid rgba(255,255,255,0.15)' }}
+        >
+          {actionError}
         </div>
+      )}
 
-        {/* Ошибка */}
-        {actionError && (
-          <div className="px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-xs text-center">
-            {actionError}
-          </div>
-        )}
-
-        {/* Действия */}
-        <ActionPanel
-          gameState={gameState}
-          myPlayer={myPlayer}
-          isMyTurn={isMyTurn}
-          properties={properties}
-          allPlayers={players}
-          onAction={handleAction}
-        />
-
-        {/* Разделитель */}
-        <div className="h-px bg-white/6" />
-
-        {/* Игроки */}
-        <PlayerPanel
-          players={players}
-          properties={properties}
-          currentPlayerIndex={gameState.current_player_index}
-          mySessionId={sessionId}
-        />
-
-        {/* Отступ снизу */}
-        <div className="h-4 shrink-0" />
-      </div>
+      <Board
+        players={players}
+        properties={properties}
+        gameState={gameState}
+        myPlayer={myPlayer}
+        isMyTurn={isMyTurn}
+        onAction={handleAction}
+      />
     </div>
   );
 }

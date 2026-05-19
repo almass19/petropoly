@@ -5,6 +5,7 @@ import { BOARD } from '@/lib/game/board-data';
 import type { GameState, PropertyOwnership } from '@/types/game';
 import type { Player } from '@/types/player';
 import { PLAYER_COLORS } from '@/types/player';
+import type { PropertySquare } from '@/types/board';
 import Square from './Square';
 import Dice from '../game/Dice';
 import { THEME } from '@/lib/game/theme';
@@ -19,6 +20,11 @@ interface Props {
 }
 
 type Side = 'bottom' | 'left' | 'top' | 'right' | 'corner';
+
+const PROP_COLORS: Record<string, string> = {
+  brown: '#8B4513', cyan: '#00BFFF', pink: '#FF1493', orange: '#FF8C00',
+  red: '#DC143C', yellow: '#FFD700', green: '#228B22', blue: '#00008B',
+};
 
 function getSide(index: number): Side {
   if ([0, 10, 20, 30].includes(index)) return 'corner';
@@ -39,24 +45,62 @@ function getGridPos(index: number): { row: number; col: number } {
   return { row: index - 29, col: 11 };
 }
 
+function propDotColor(squareIndex: number): string | null {
+  const sq = BOARD[squareIndex];
+  if (!sq) return null;
+  if (sq.type === 'property') return PROP_COLORS[(sq as PropertySquare).color] ?? null;
+  if (sq.type === 'railroad') return '#334155';
+  if (sq.type === 'utility') return '#7c3aed';
+  return null;
+}
+
+const S = {
+  btn: (bg: string, disabled = false): React.CSSProperties => ({
+    width: '100%',
+    padding: 'clamp(4px,1.2vw,11px) clamp(6px,1.5vw,14px)',
+    fontSize: 'clamp(0.5rem,1.7vw,0.95rem)',
+    fontWeight: 800,
+    color: 'white',
+    backgroundColor: bg,
+    border: 'none',
+    borderRadius: 'clamp(5px,1.1vw,10px)',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.4 : 1,
+    transition: 'opacity 0.15s',
+    lineHeight: 1.2,
+  }),
+  btnSoft: (disabled = false): React.CSSProperties => ({
+    width: '100%',
+    padding: 'clamp(3px,0.9vw,8px)',
+    fontSize: 'clamp(0.4rem,1.2vw,0.72rem)',
+    fontWeight: 600,
+    color: '#4b3d2e',
+    backgroundColor: '#d5cbbf',
+    border: 'none',
+    borderRadius: 'clamp(4px,1vw,9px)',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+  }),
+} as const;
+
 export default function Board({ players, properties, gameState, myPlayer, isMyTurn, onAction }: Props) {
   const [loading, setLoading] = useState(false);
 
   const dice = gameState?.last_dice;
   const phase = gameState?.turn_phase;
   const pendingCard = (gameState as { pending_card?: { text: string } } | undefined)?.pending_card;
-
   const currentSquare = myPlayer ? BOARD[myPlayer.position] : null;
   const squareOwnership = myPlayer ? properties.find(p => p.square_index === myPlayer.position) : null;
   const isOwnable = currentSquare?.type === 'property' || currentSquare?.type === 'railroad' || currentSquare?.type === 'utility';
   const canBuy = phase === 'action_required' && isOwnable && !squareOwnership?.owner_session_id;
   const canEndTurn = isMyTurn && (
-    phase === 'turn_ended' ||
-    phase === 'handling_square' ||
+    phase === 'turn_ended' || phase === 'handling_square' ||
     (phase === 'action_required' && !canBuy && !pendingCard)
   );
   const canRoll = isMyTurn && phase === 'awaiting_roll' && !myPlayer?.is_in_jail;
   const isInJail = isMyTurn && phase === 'awaiting_roll' && myPlayer?.is_in_jail;
+  const currentPlayer = gameState ? players[gameState.current_player_index] : null;
+  const buyPrice = (BOARD[myPlayer?.position ?? 0] as { price?: number }).price ?? 0;
 
   async function act(action: object) {
     if (!onAction) return;
@@ -65,25 +109,24 @@ export default function Board({ players, properties, gameState, myPlayer, isMyTu
   }
 
   return (
-    <div
-      className="relative mx-auto"
-      style={{ height: '100%', aspectRatio: '1 / 1', maxHeight: '100%', maxWidth: '100%' }}
-    >
+    <div style={{ position: 'relative', width: 'min(100vw,100vh)', height: 'min(100vw,100vh)', flexShrink: 0 }}>
       <div
         className="absolute inset-0 -z-10 rounded-2xl"
-        style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.3)' }}
+        style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.55), 0 8px 20px rgba(0,0,0,0.3)' }}
       />
-
       <div
-        className="w-full h-full rounded-xl overflow-hidden"
         style={{
+          width: '100%', height: '100%',
           display: 'grid',
-          gridTemplateColumns: '2fr repeat(9, 1fr) 2fr',
-          gridTemplateRows: '2fr repeat(9, 1fr) 2fr',
+          gridTemplateColumns: '2fr repeat(9,1fr) 2fr',
+          gridTemplateRows: '2fr repeat(9,1fr) 2fr',
           border: '4px solid #8b5e3c',
+          borderRadius: 12,
+          overflow: 'hidden',
           backgroundColor: '#faf6f0',
         }}
       >
+        {/* Board squares */}
         {BOARD.map((square) => {
           const { row, col } = getGridPos(square.index);
           const side = getSide(square.index);
@@ -95,212 +138,181 @@ export default function Board({ players, properties, gameState, myPlayer, isMyTu
           );
         })}
 
-        {/* Board center */}
+        {/* ===== CENTER ===== */}
         <div
-          style={{ gridRow: '2 / 11', gridColumn: '2 / 11', background: '#f0ead8' }}
-          className="flex flex-col items-center justify-between py-3 px-2 select-none overflow-hidden"
+          style={{
+            gridRow: '2/11', gridColumn: '2/11',
+            display: 'flex',
+            backgroundColor: '#ede8d8',
+            overflow: 'hidden',
+          }}
         >
-          {/* Title */}
-          <div className="text-center shrink-0">
-            <div
-              className="font-black leading-none tracking-tight"
-              style={{ fontSize: 'clamp(0.9rem, 3.5vw, 2.8rem)', color: '#3d1f0a' }}
-            >
-              {THEME.boardName}
+          {/* LEFT: Players */}
+          <div
+            style={{
+              width: '42%',
+              borderRight: '1px solid rgba(0,0,0,0.1)',
+              padding: 'clamp(4px,1.2vw,14px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'clamp(3px,0.7vw,7px)',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ fontSize: 'clamp(0.28rem,0.75vw,0.55rem)', fontWeight: 800, color: '#9e8468', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 2 }}>
+              Игроки
             </div>
-            <div
-              className="font-semibold tracking-[0.15em] uppercase mt-0.5"
-              style={{ fontSize: 'clamp(0.3rem, 1vw, 0.7rem)', color: '#7c5c3a' }}
-            >
-              Монополия
-            </div>
-          </div>
 
-          {/* Dice area */}
-          <div className="flex flex-col items-center gap-1.5 shrink-0">
-            {gameState ? (
-              <>
-                <Dice
-                  die1={dice?.die1 ?? null}
-                  die2={dice?.die2 ?? null}
-                  rolling={loading && phase === 'awaiting_roll'}
-                />
-                {dice && (
-                  <div
-                    className="font-black tabular-nums"
-                    style={{ fontSize: 'clamp(0.7rem, 2.5vw, 1.6rem)', color: '#3d1f0a' }}
-                  >
-                    {dice.die1 + dice.die2}
+            {players.map((player) => {
+              const isActive = player.session_id === currentPlayer?.session_id;
+              const isMe = player.session_id === myPlayer?.session_id;
+              const ownedProps = properties.filter(po => po.owner_session_id === player.session_id);
+              return (
+                <div
+                  key={player.session_id}
+                  style={{
+                    backgroundColor: isActive ? 'rgba(22,163,74,0.1)' : 'rgba(255,255,255,0.55)',
+                    border: isActive ? '1px solid rgba(22,163,74,0.35)' : '1px solid rgba(0,0,0,0.07)',
+                    borderRadius: 'clamp(4px,1vw,9px)',
+                    padding: 'clamp(3px,0.8vw,8px)',
+                    opacity: player.is_bankrupt ? 0.35 : 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'clamp(2px,0.4vw,4px)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(3px,0.7vw,7px)' }}>
+                    {/* Avatar */}
+                    <div style={{
+                      width: 'clamp(14px,3.5vw,30px)', height: 'clamp(14px,3.5vw,30px)',
+                      borderRadius: '50%', backgroundColor: PLAYER_COLORS[player.color],
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 'clamp(0.32rem,0.9vw,0.7rem)', fontWeight: 900, color: 'white', flexShrink: 0,
+                    }}>
+                      {player.name[0]?.toUpperCase()}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 'clamp(0.3rem,0.85vw,0.62rem)', fontWeight: 700, color: '#2d1a08', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {player.name}{isMe ? ' (ты)' : ''}
+                        {player.is_in_jail ? ' ✘' : ''}
+                      </div>
+                      <div style={{ fontSize: 'clamp(0.28rem,0.8vw,0.58rem)', fontFamily: 'monospace', fontWeight: 700, color: player.cash < 2000 ? '#dc2626' : '#16a34a' }}>
+                        {player.cash.toLocaleString()}₸
+                      </div>
+                    </div>
+
+                    {isActive && (
+                      <div style={{ width: 'clamp(5px,1.1vw,9px)', height: 'clamp(5px,1.1vw,9px)', borderRadius: '50%', backgroundColor: '#16a34a', boxShadow: '0 0 6px #16a34a', flexShrink: 0 }} />
+                    )}
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="flex gap-2 opacity-20">
-                <div className="bg-white rounded-xl border-2 border-amber-900/30" style={{ width: 'clamp(28px,6vw,48px)', height: 'clamp(28px,6vw,48px)' }} />
-                <div className="bg-white rounded-xl border-2 border-amber-900/30" style={{ width: 'clamp(28px,6vw,48px)', height: 'clamp(28px,6vw,48px)' }} />
-              </div>
-            )}
+
+                  {/* Property color dots */}
+                  {ownedProps.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(1px,0.3vw,3px)', paddingLeft: 'clamp(17px,4.2vw,37px)' }}>
+                      {ownedProps.map(po => {
+                        const color = propDotColor(po.square_index);
+                        if (!color) return null;
+                        return (
+                          <div key={po.square_index} title={BOARD[po.square_index]?.name} style={{
+                            width: 'clamp(5px,1.2vw,10px)', height: 'clamp(5px,1.2vw,10px)',
+                            borderRadius: 2, backgroundColor: color,
+                          }} />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Action zone */}
-          <div className="w-full flex flex-col gap-1.5 items-center shrink-0" style={{ maxWidth: 'clamp(80px, 20vw, 180px)' }}>
-            {myPlayer && isMyTurn ? (
-              <>
-                {/* Roll */}
-                {canRoll && (
-                  <button
-                    onClick={() => act({ type: 'ROLL_DICE', sessionId: myPlayer.session_id })}
-                    disabled={loading}
-                    className="w-full font-black text-white rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                    style={{
-                      fontSize: 'clamp(0.55rem, 1.8vw, 1rem)',
-                      padding: 'clamp(4px, 1.2vw, 10px) clamp(8px, 2vw, 16px)',
-                      backgroundColor: '#16a34a',
-                      boxShadow: '0 3px 10px rgba(22,163,74,0.45)',
-                    }}
-                  >
-                    {loading ? '...' : 'Бросить'}
-                  </button>
-                )}
+          {/* RIGHT: Controls */}
+          <div style={{
+            width: '58%',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+            padding: 'clamp(6px,1.8vw,20px) clamp(4px,1.2vw,14px)',
+            gap: 'clamp(3px,0.8vw,8px)',
+          }}>
+            {/* Title */}
+            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+              <div style={{ fontSize: 'clamp(1rem,4vw,3.2rem)', fontWeight: 900, color: '#3d1f0a', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                {THEME.boardName}
+              </div>
+              <div style={{ fontSize: 'clamp(0.26rem,0.75vw,0.55rem)', fontWeight: 600, color: '#9e8468', letterSpacing: '0.22em', textTransform: 'uppercase', marginTop: 2 }}>
+                Монополия
+              </div>
+            </div>
 
-                {/* In jail options */}
-                {isInJail && (
-                  <>
-                    <button
-                      onClick={() => act({ type: 'ROLL_DICE', sessionId: myPlayer.session_id })}
-                      disabled={loading}
-                      className="w-full font-bold text-white rounded-xl transition-all disabled:opacity-50"
-                      style={{
-                        fontSize: 'clamp(0.45rem, 1.4vw, 0.8rem)',
-                        padding: 'clamp(3px, 1vw, 8px)',
-                        backgroundColor: '#16a34a',
-                      }}
-                    >
-                      {loading ? '...' : 'Дубль (из тюрьмы)'}
+            {/* Dice */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px,0.5vw,5px)', flexShrink: 0 }}>
+              <Dice die1={dice?.die1 ?? null} die2={dice?.die2 ?? null} rolling={loading && phase === 'awaiting_roll'} />
+              {dice && (
+                <div style={{ fontSize: 'clamp(0.75rem,2.8vw,2rem)', fontWeight: 900, color: '#3d1f0a', fontFamily: 'monospace' }}>
+                  {dice.die1 + dice.die2}
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ width: '100%', maxWidth: 'clamp(90px,24vw,210px)', display: 'flex', flexDirection: 'column', gap: 'clamp(2px,0.6vw,6px)', flexShrink: 0 }}>
+              {myPlayer && isMyTurn ? (
+                <>
+                  {canRoll && (
+                    <button onClick={() => act({ type: 'ROLL_DICE', sessionId: myPlayer.session_id })} disabled={loading} style={{ ...S.btn('#16a34a', loading), boxShadow: loading ? 'none' : '0 4px 14px rgba(22,163,74,0.5)' }}>
+                      {loading ? '…' : 'Бросить кубики'}
                     </button>
-                    <button
-                      onClick={() => act({ type: 'PAY_BAIL', sessionId: myPlayer.session_id })}
-                      disabled={loading || myPlayer.cash < THEME.bailPrice}
-                      className="w-full font-bold text-white rounded-xl transition-all disabled:opacity-40"
-                      style={{
-                        fontSize: 'clamp(0.4rem, 1.3vw, 0.75rem)',
-                        padding: 'clamp(3px, 0.9vw, 7px)',
-                        backgroundColor: '#b45309',
-                      }}
-                    >
+                  )}
+
+                  {isInJail && <>
+                    <button onClick={() => act({ type: 'ROLL_DICE', sessionId: myPlayer.session_id })} disabled={loading} style={S.btn('#16a34a', loading)}>
+                      {loading ? '…' : 'Дубль (из тюрьмы)'}
+                    </button>
+                    <button onClick={() => act({ type: 'PAY_BAIL', sessionId: myPlayer.session_id })} disabled={loading || myPlayer.cash < THEME.bailPrice} style={S.btn('#b45309', loading || myPlayer.cash < THEME.bailPrice)}>
                       Залог {THEME.bailPrice.toLocaleString()}₸
                     </button>
-                  </>
-                )}
+                  </>}
 
-                {/* Buy property */}
-                {canBuy && (
-                  <>
-                    <div
-                      className="text-center font-semibold leading-tight"
-                      style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.65rem)', color: '#3d1f0a' }}
-                    >
+                  {canBuy && <>
+                    <div style={{ textAlign: 'center', fontSize: 'clamp(0.32rem,1vw,0.65rem)', fontWeight: 600, color: '#3d1f0a', lineHeight: 1.3 }}>
                       {currentSquare?.name}
                     </div>
-                    <button
-                      onClick={() => act({ type: 'BUY_PROPERTY', sessionId: myPlayer.session_id, squareIndex: myPlayer.position })}
-                      disabled={loading || myPlayer.cash < ((BOARD[myPlayer.position] as { price?: number }).price ?? 0)}
-                      className="w-full font-black text-white rounded-xl transition-all disabled:opacity-40"
-                      style={{
-                        fontSize: 'clamp(0.5rem, 1.6vw, 0.9rem)',
-                        padding: 'clamp(4px, 1.1vw, 9px)',
-                        backgroundColor: '#1d4ed8',
-                        boxShadow: '0 3px 10px rgba(29,78,216,0.4)',
-                      }}
-                    >
-                      {((BOARD[myPlayer.position] as { price?: number }).price ?? 0).toLocaleString()}₸
+                    <button onClick={() => act({ type: 'BUY_PROPERTY', sessionId: myPlayer.session_id, squareIndex: myPlayer.position })} disabled={loading || myPlayer.cash < buyPrice} style={{ ...S.btn('#1d4ed8', loading || myPlayer.cash < buyPrice), boxShadow: loading ? 'none' : '0 4px 14px rgba(29,78,216,0.45)' }}>
+                      Купить {buyPrice.toLocaleString()}₸
                     </button>
-                    <button
-                      onClick={() => act({ type: 'DECLINE_PURCHASE', sessionId: myPlayer.session_id })}
-                      disabled={loading}
-                      className="w-full font-medium rounded-xl transition-all"
-                      style={{
-                        fontSize: 'clamp(0.4rem, 1.2vw, 0.7rem)',
-                        padding: 'clamp(2px, 0.8vw, 6px)',
-                        backgroundColor: '#d1c9b8',
-                        color: '#4b3d2e',
-                      }}
-                    >
+                    <button onClick={() => act({ type: 'DECLINE_PURCHASE', sessionId: myPlayer.session_id })} disabled={loading} style={S.btnSoft(loading)}>
                       Пропустить
                     </button>
-                  </>
-                )}
+                  </>}
 
-                {/* Pending card */}
-                {pendingCard && (
-                  <>
-                    <div
-                      className="text-center font-medium leading-tight px-1"
-                      style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.65rem)', color: '#78350f' }}
-                    >
+                  {pendingCard && <>
+                    <div style={{ textAlign: 'center', fontSize: 'clamp(0.3rem,0.95vw,0.65rem)', color: '#78350f', lineHeight: 1.35, padding: '0 2px' }}>
                       {pendingCard.text}
                     </div>
-                    <button
-                      onClick={() => act({ type: 'END_TURN', sessionId: myPlayer.session_id })}
-                      disabled={loading}
-                      className="w-full font-bold text-white rounded-xl transition-all disabled:opacity-50"
-                      style={{
-                        fontSize: 'clamp(0.45rem, 1.3vw, 0.75rem)',
-                        padding: 'clamp(3px, 0.9vw, 7px)',
-                        backgroundColor: '#b45309',
-                      }}
-                    >
+                    <button onClick={() => act({ type: 'END_TURN', sessionId: myPlayer.session_id })} disabled={loading} style={S.btn('#b45309', loading)}>
                       Принять
                     </button>
-                  </>
-                )}
+                  </>}
 
-                {/* End turn */}
-                {canEndTurn && !canBuy && !pendingCard && (
-                  <button
-                    onClick={() => act({ type: 'END_TURN', sessionId: myPlayer.session_id })}
-                    disabled={loading}
-                    className="w-full font-bold text-white rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                    style={{
-                      fontSize: 'clamp(0.55rem, 1.8vw, 1rem)',
-                      padding: 'clamp(4px, 1.2vw, 10px)',
-                      backgroundColor: '#475569',
-                    }}
-                  >
-                    {loading ? '...' : 'Следующий ход'}
-                  </button>
-                )}
-              </>
-            ) : gameState ? (
-              <div
-                className="text-center font-medium"
-                style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.65rem)', color: '#9e8c6d' }}
-              >
-                Ход другого игрока
-              </div>
-            ) : null}
-          </div>
+                  {canEndTurn && !canBuy && !pendingCard && (
+                    <button onClick={() => act({ type: 'END_TURN', sessionId: myPlayer.session_id })} disabled={loading} style={S.btn('#475569', loading)}>
+                      {loading ? '…' : 'Следующий ход'}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', fontSize: 'clamp(0.3rem,0.9vw,0.65rem)', color: '#9e8c6d', fontWeight: 500, lineHeight: 1.4 }}>
+                  {currentPlayer ? `Ход ${currentPlayer.name}…` : ''}
+                </div>
+              )}
+            </div>
 
-          {/* Player balances */}
-          <div className="flex flex-wrap gap-x-2 gap-y-0.5 justify-center shrink-0">
-            {players.filter(p => !p.is_bankrupt).map(p => (
-              <div key={p.session_id} className="flex items-center gap-0.5">
-                <div
-                  className="rounded-full shrink-0"
-                  style={{
-                    width: 'clamp(4px, 1vw, 8px)',
-                    height: 'clamp(4px, 1vw, 8px)',
-                    backgroundColor: PLAYER_COLORS[p.color],
-                  }}
-                />
-                <span style={{ fontSize: 'clamp(0.3rem, 0.9vw, 0.6rem)', color: '#3d1f0a', fontWeight: 700 }}>
-                  {p.name}
-                </span>
-                <span style={{ fontSize: 'clamp(0.28rem, 0.85vw, 0.55rem)', color: '#7c5c3a', fontFamily: 'monospace' }}>
-                  {p.cash.toLocaleString()}₸
-                </span>
+            {/* Current position label */}
+            {currentSquare && phase && phase !== 'awaiting_roll' && (
+              <div style={{ textAlign: 'center', fontSize: 'clamp(0.27rem,0.8vw,0.58rem)', color: '#9e7c5a', fontWeight: 500, flexShrink: 0 }}>
+                {currentSquare.name}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
