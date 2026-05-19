@@ -139,6 +139,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cod
         }
       }
 
+      // Любая клетка без спецдействия → заканчиваем ход
+      if (newPhase === 'handling_square') newPhase = 'turn_ended';
+
       await supabase.from('players').update({ position: newPos, cash: currentPlayer.cash + cashDelta }).eq('id', currentPlayer.id);
       await supabase.from('game_states').update({
         last_dice: dice,

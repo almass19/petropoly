@@ -11,90 +11,96 @@ interface Props {
   properties: PropertyOwnership[];
 }
 
-// Маппинг 40 клеток на CSS Grid 12×12
-// Углы — 2×2, стороны — 1×2 (повёрнуто)
-// Строки/столбцы: 1-12
-// Позиции по часовой стрелке начиная с GO (правый нижний угол)
-function getGridPos(index: number): { row: string; col: string; rotate: number } {
-  // Нижний ряд: 0 (GO) → правый нижний, 1-9 идут влево, 10 → левый нижний
-  if (index === 0) return { row: '11 / 13', col: '11 / 13', rotate: 0 };   // GO
-  if (index >= 1 && index <= 9) return { row: '11 / 13', col: `${11 - index} / ${12 - index}`, rotate: 0 };
-  if (index === 10) return { row: '11 / 13', col: '1 / 3', rotate: 0 };    // Jail
+type Side = 'bottom' | 'left' | 'top' | 'right' | 'corner';
 
-  // Левая сторона: 11-19 снизу вверх
-  if (index >= 11 && index <= 19) return { row: `${11 - (index - 10)} / ${12 - (index - 10)}`, col: '1 / 3', rotate: 90 };
+function getSide(index: number): Side {
+  if ([0, 10, 20, 30].includes(index)) return 'corner';
+  if (index >= 1 && index <= 9) return 'bottom';
+  if (index >= 11 && index <= 19) return 'left';
+  if (index >= 21 && index <= 29) return 'top';
+  return 'right';
+}
 
-  if (index === 20) return { row: '1 / 3', col: '1 / 3', rotate: 0 };      // Free Parking
-
-  // Верхний ряд: 21-29 слева направо
-  if (index >= 21 && index <= 29) return { row: '1 / 3', col: `${index - 18} / ${index - 17}`, rotate: 180 };
-
-  if (index === 30) return { row: '1 / 3', col: '11 / 13', rotate: 0 };    // Go to Jail
-
-  // Правая сторона: 31-39 сверху вниз
-  if (index >= 31 && index <= 39) return { row: `${index - 29} / ${index - 28}`, col: '11 / 13', rotate: 270 };
-
-  return { row: '1', col: '1', rotate: 0 };
+function getGridPos(index: number): { row: number; col: number } {
+  if (index === 0) return { row: 11, col: 11 };
+  if (index >= 1 && index <= 9) return { row: 11, col: 11 - index };
+  if (index === 10) return { row: 11, col: 1 };
+  if (index >= 11 && index <= 19) return { row: 11 - (index - 10), col: 1 };
+  if (index === 20) return { row: 1, col: 1 };
+  if (index >= 21 && index <= 29) return { row: 1, col: index - 19 };
+  if (index === 30) return { row: 1, col: 11 };
+  return { row: index - 29, col: 11 };
 }
 
 export default function Board({ players, properties }: Props) {
   return (
-    <div className="relative w-full aspect-square max-w-2xl mx-auto">
-      {/* Внешняя рамка */}
+    <div className="w-full aspect-square max-w-[680px] mx-auto relative">
+      {/* Внешняя тень и рамка */}
+      <div className="absolute inset-0 rounded-2xl shadow-2xl bg-amber-900/20 blur-xl scale-95 -z-10" />
+
       <div
-        className="w-full h-full grid border-2 border-slate-800 rounded-sm bg-emerald-100"
+        className="w-full h-full rounded-xl overflow-hidden border-4 border-amber-900"
         style={{
-          gridTemplateColumns: 'repeat(12, 1fr)',
-          gridTemplateRows: 'repeat(12, 1fr)',
+          display: 'grid',
+          gridTemplateColumns: '2fr repeat(9, 1fr) 2fr',
+          gridTemplateRows: '2fr repeat(9, 1fr) 2fr',
+          backgroundColor: '#2d5a27',
         }}
       >
-        {/* Клетки доски */}
         {BOARD.map((square) => {
-          const { row, col, rotate } = getGridPos(square.index);
+          const { row, col } = getGridPos(square.index);
+          const side = getSide(square.index);
           const ownership = properties.find((p) => p.square_index === square.index);
-          const isCorner = [0, 10, 20, 30].includes(square.index);
 
           return (
             <div
               key={square.index}
               style={{ gridRow: row, gridColumn: col }}
-              className="min-w-0 min-h-0"
             >
               <Square
                 square={square}
                 ownership={ownership}
                 players={players}
-                isCorner={isCorner}
-                rotation={rotate}
+                side={side}
               />
             </div>
           );
         })}
 
-        {/* Центр доски */}
+        {/* Центр */}
         <div
-          style={{ gridRow: '3 / 11', gridColumn: '3 / 11' }}
-          className="flex flex-col items-center justify-center gap-2 p-4"
+          style={{ gridRow: '2 / 11', gridColumn: '2 / 11' }}
+          className="flex flex-col items-center justify-center gap-3 p-4 select-none"
         >
+          {/* Логотип */}
           <div className="text-center">
-            <div className="text-2xl sm:text-4xl font-black tracking-tight text-emerald-800 leading-none">
+            <div
+              className="font-black text-green-900 leading-none tracking-tight"
+              style={{ fontSize: 'clamp(1.4rem, 5vw, 3.5rem)' }}
+            >
               {THEME.boardName}
             </div>
-            <div className="text-xs text-emerald-600 font-medium mt-1">
+            <div className="text-green-800 font-semibold text-[clamp(0.5rem,1.2vw,0.85rem)] tracking-[0.2em] uppercase mt-1">
               Монополия
             </div>
           </div>
 
-          {/* Мини-легенда игроков */}
-          <div className="flex flex-wrap gap-1.5 justify-center mt-2">
-            {players.filter((p) => !p.is_bankrupt).map((p) => (
-              <div key={p.session_id} className="flex items-center gap-1 text-[0.6rem] text-slate-600">
-                <div
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: getPlayerColorHex(p.color) }}
-                />
-                <span className="font-medium truncate max-w-[4rem]">{p.name}</span>
-                <span className="font-mono text-emerald-700">{p.cash.toLocaleString()}₸</span>
+          {/* Монетка-декор */}
+          <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-yellow-300 to-yellow-600 border-4 border-yellow-700 flex items-center justify-center shadow-lg">
+            <span className="text-yellow-900 font-black" style={{ fontSize: 'clamp(1rem, 3vw, 2rem)' }}>₸</span>
+          </div>
+
+          {/* Игроки */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
+            {players.filter(p => !p.is_bankrupt).map(p => (
+              <div key={p.session_id} className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getColorHex(p.color) }} />
+                <span className="text-green-900 font-bold" style={{ fontSize: 'clamp(0.45rem, 1.2vw, 0.75rem)' }}>
+                  {p.name}
+                </span>
+                <span className="text-green-700 font-mono" style={{ fontSize: 'clamp(0.4rem, 1vw, 0.65rem)' }}>
+                  {p.cash.toLocaleString()}₸
+                </span>
               </div>
             ))}
           </div>
@@ -104,7 +110,7 @@ export default function Board({ players, properties }: Props) {
   );
 }
 
-function getPlayerColorHex(color: string): string {
+function getColorHex(color: string): string {
   const map: Record<string, string> = {
     red: '#ef4444', blue: '#3b82f6', green: '#22c55e',
     yellow: '#eab308', purple: '#a855f7', orange: '#f97316',

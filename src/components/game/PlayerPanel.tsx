@@ -1,11 +1,11 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import type { Player } from '@/types/player';
 import { PLAYER_COLORS } from '@/types/player';
 import type { PropertyOwnership } from '@/types/game';
 import { BOARD } from '@/lib/game/board-data';
 import { THEME } from '@/lib/game/theme';
-import { motion } from 'framer-motion';
 
 interface Props {
   players: Player[];
@@ -17,62 +17,64 @@ interface Props {
 export default function PlayerPanel({ players, properties, currentPlayerIndex, mySessionId }: Props) {
   return (
     <div className="space-y-2">
+      <div className="text-xs font-bold uppercase tracking-widest text-white/30 px-1 mb-3">Игроки</div>
       {players.map((player, i) => {
         const isActive = i === currentPlayerIndex;
         const isMe = player.session_id === mySessionId;
-        const myProps = properties.filter((p) => p.owner_session_id === player.session_id);
+        const myProps = properties.filter(p => p.owner_session_id === player.session_id);
 
         return (
           <motion.div
             key={player.session_id}
-            className={`
-              rounded-xl p-3 border transition-all
-              ${isActive ? 'border-emerald-400 bg-emerald-50 shadow-md' : 'border-slate-200 bg-white'}
-              ${player.is_bankrupt ? 'opacity-40' : ''}
-            `}
-            animate={{ scale: isActive ? 1.02 : 1 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className={`rounded-2xl p-3 border transition-all ${
+              isActive
+                ? 'border-emerald-500/50 bg-emerald-500/10'
+                : 'border-white/8 bg-white/5'
+            } ${player.is_bankrupt ? 'opacity-30' : ''}`}
+            animate={{ scale: isActive ? 1.01 : 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* Токен */}
               <div
-                className="w-4 h-4 rounded-full shrink-0 shadow"
+                className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center border-2 border-black/20 shadow-lg font-black text-white text-xs"
                 style={{ backgroundColor: PLAYER_COLORS[player.color] }}
-              />
-              <span className="font-semibold text-sm text-slate-800 truncate">
-                {player.name}
-                {isMe && <span className="text-emerald-600 ml-1 text-xs">(ты)</span>}
-              </span>
-              {isActive && <span className="ml-auto text-xs text-emerald-600 font-medium">ход</span>}
-              {player.is_in_jail && <span className="ml-auto text-xs">👮 тюрьма</span>}
-              {player.is_bankrupt && <span className="ml-auto text-xs text-red-500">💀 банкрот</span>}
+              >
+                {player.name[0]?.toUpperCase()}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-bold text-sm truncate">{player.name}</span>
+                  {isMe && <span className="text-emerald-400 text-xs">(ты)</span>}
+                  {player.is_in_jail && <span className="text-xs">👮</span>}
+                  {player.is_bankrupt && <span className="text-xs text-red-400">💀</span>}
+                </div>
+                <div className="text-emerald-400 font-mono font-bold text-base">
+                  {player.cash.toLocaleString()}{THEME.currency}
+                </div>
+              </div>
+
+              {isActive && (
+                <div className="shrink-0 w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50 animate-pulse" />
+              )}
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-emerald-700 font-mono font-bold text-sm">
-                {player.cash.toLocaleString()}{THEME.currency}
-              </span>
-              <span className="text-slate-400 text-xs">
-                {myProps.length} объект{myProps.length === 1 ? '' : myProps.length < 5 ? 'а' : 'ов'}
-              </span>
-            </div>
-
-            {/* Мини-список объектов */}
             {myProps.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {myProps.slice(0, 6).map((p) => {
+              <div className="mt-2 flex flex-wrap gap-1">
+                {myProps.slice(0, 5).map(p => {
                   const sq = BOARD[p.square_index];
                   return (
                     <span
                       key={p.square_index}
-                      className="text-[0.55rem] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 truncate max-w-[6rem]"
-                      title={sq?.name}
+                      className="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-white/10 text-white/60 truncate max-w-[5rem]"
                     >
                       {sq?.name}
                     </span>
                   );
                 })}
-                {myProps.length > 6 && (
-                  <span className="text-[0.55rem] text-slate-400">+{myProps.length - 6}</span>
+                {myProps.length > 5 && (
+                  <span className="text-[0.6rem] text-white/30">+{myProps.length - 5}</span>
                 )}
               </div>
             )}
