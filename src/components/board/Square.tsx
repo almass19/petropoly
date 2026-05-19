@@ -10,21 +10,36 @@ import PropertyCard from './PropertyCard';
 type Side = 'bottom' | 'left' | 'top' | 'right' | 'corner';
 
 const COLOR_HEX: Record<string, string> = {
-  brown: '#92400e', cyan: '#0891b2', pink: '#db2777',
-  orange: '#ea580c', red: '#dc2626', yellow: '#ca8a04',
-  green: '#16a34a', blue: '#1d4ed8',
+  brown:  '#8B4513',
+  cyan:   '#00BFFF',
+  pink:   '#FF1493',
+  orange: '#FF8C00',
+  red:    '#DC143C',
+  yellow: '#FFD700',
+  green:  '#228B22',
+  blue:   '#00008B',
 };
 
-const SQUARE_EMOJI: Record<string, string> = {
-  go: '💰', jail: '👮', free_parking: '☕',
-  go_to_jail: '🚨', chance: '❓', community_chest: '🤝',
-  railroad: '🚗', utility: '🏠', tax: '💸',
+// Special square backgrounds
+const SPECIAL_BG: Record<string, string> = {
+  go:               '#d1fae5',
+  jail:             '#fef3c7',
+  free_parking:     '#dbeafe',
+  go_to_jail:       '#fee2e2',
+  chance:           '#ffedd5',
+  community_chest:  '#f3e8ff',
+  tax:              '#fee2e2',
 };
 
-const SQUARE_BG: Record<string, string> = {
-  go: '#ecfdf5', jail: '#fef9c3', free_parking: '#f0f9ff',
-  go_to_jail: '#fff1f2', chance: '#fff7ed', community_chest: '#faf5ff',
-  tax: '#fff1f2', property: '#fffbf0', railroad: '#f8fafc', utility: '#f0fdfa',
+// Special square labels (no emojis)
+const SPECIAL_LABEL: Record<string, { line1: string; line2?: string; color: string }> = {
+  go:              { line1: 'ПОЛУЧКА',            color: '#166534' },
+  jail:            { line1: 'У НАЧАЛЬНИКА',       color: '#92400e' },
+  free_parking:    { line1: 'ПЕРЕКУР',             color: '#1e40af' },
+  go_to_jail:      { line1: 'К НАЧАЛЬНИКУ',        color: '#991b1b' },
+  chance:          { line1: '?',                   color: '#c2410c' },
+  community_chest: { line1: '!',                   color: '#7e22ce' },
+  tax:             { line1: '',                    color: '#991b1b' },
 };
 
 interface Props {
@@ -39,132 +54,221 @@ export default function Square({ square, ownership, players, side }: Props) {
   const playersHere = players.filter(p => p.position === square.index && !p.is_bankrupt);
   const isOwnable = square.type === 'property' || square.type === 'railroad' || square.type === 'utility';
   const isCorner = side === 'corner';
-  const isHorizontal = side === 'left' || side === 'right';
-
-  const bg = SQUARE_BG[square.type] ?? '#fffbf0';
   const colorBar = square.type === 'property' ? COLOR_HEX[(square as PropertySquare).color] : null;
 
-  // Цветная полоса: позиция зависит от стороны
-  const barStyle: React.CSSProperties = colorBar ? (() => {
-    const base = { position: 'absolute' as const, backgroundColor: colorBar };
-    if (side === 'bottom' || side === 'corner') return { ...base, top: 0, left: 0, right: 0, height: '6px' };
-    if (side === 'top') return { ...base, bottom: 0, left: 0, right: 0, height: '6px' };
-    if (side === 'left') return { ...base, top: 0, bottom: 0, right: 0, width: '6px' };
-    return { ...base, top: 0, bottom: 0, left: 0, width: '6px' };
-  })() : {};
+  const bg = colorBar ? '#fff' : (SPECIAL_BG[square.type] ?? '#fff');
+  const special = SPECIAL_LABEL[square.type];
+
+  // Strip position by side
+  const stripStyle: React.CSSProperties | null = colorBar ? {
+    position: 'absolute',
+    background: colorBar,
+    ...(side === 'bottom'                ? { top: 0, left: 0, right: 0, height: 8 }  :
+        side === 'top'                   ? { bottom: 0, left: 0, right: 0, height: 8 } :
+        side === 'left'                  ? { top: 0, bottom: 0, right: 0, width: 8 }  :
+        side === 'right'                 ? { top: 0, bottom: 0, left: 0, width: 8 }   :
+                                           { top: 0, left: 0, right: 0, height: 8 }),
+  } : null;
+
+  // Railroad color bar (dark)
+  const railStrip: React.CSSProperties | null = square.type === 'railroad' ? {
+    position: 'absolute',
+    background: '#1e293b',
+    ...(side === 'bottom' || isCorner ? { top: 0, left: 0, right: 0, height: 6 } :
+        side === 'top'                ? { bottom: 0, left: 0, right: 0, height: 6 } :
+        side === 'left'               ? { top: 0, bottom: 0, right: 0, width: 6 } :
+                                        { top: 0, bottom: 0, left: 0, width: 6 }),
+  } : null;
+
+  const price = isOwnable ? (square as { price: number }).price : 0;
+  const ownerPlayer = ownership?.owner_session_id
+    ? players.find(p => p.session_id === ownership.owner_session_id)
+    : null;
 
   return (
     <>
       <div
-        className="relative w-full h-full border border-amber-200/60 flex overflow-hidden select-none"
+        className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden select-none"
         style={{
-          backgroundColor: bg,
+          background: bg,
+          border: '1px solid #d1c9b8',
           cursor: isOwnable ? 'pointer' : 'default',
-          flexDirection: isHorizontal ? 'row' : 'column',
-          alignItems: 'center',
-          justifyContent: isCorner ? 'center' : (isHorizontal ? 'flex-start' : 'flex-start'),
         }}
         onClick={() => isOwnable && setShowCard(true)}
       >
-        {colorBar && <div style={barStyle} />}
+        {stripStyle && <div style={stripStyle} />}
+        {railStrip && <div style={railStrip} />}
 
-        {/* Контент */}
-        <div
-          className="flex flex-col items-center justify-center w-full h-full gap-0.5 overflow-hidden"
-          style={{
-            padding: isCorner ? '4px' : '2px',
-            paddingTop: (side === 'bottom' && colorBar) ? '10px' : undefined,
-            paddingBottom: (side === 'top' && colorBar) ? '10px' : undefined,
-            paddingRight: (side === 'left' && colorBar) ? '10px' : undefined,
-            paddingLeft: (side === 'right' && colorBar) ? '10px' : undefined,
-          }}
-        >
-          {/* Иконка */}
-          {!colorBar && (
-            <span style={{ fontSize: isCorner ? 'clamp(1rem, 2.5vw, 1.8rem)' : 'clamp(0.5rem, 1.4vw, 0.9rem)' }}>
-              {SQUARE_EMOJI[square.type] ?? ''}
-            </span>
-          )}
+        {/* Corner squares */}
+        {isCorner && special && (
+          <div className="flex flex-col items-center justify-center h-full w-full p-1 gap-0.5">
+            {square.type === 'go' && (
+              <>
+                <div style={{ fontSize: 'clamp(0.45rem, 1.5vw, 0.9rem)', fontWeight: 900, color: '#166534', textAlign: 'center', lineHeight: 1.1 }}>
+                  ПОЛУЧКА
+                </div>
+                <div style={{ fontSize: 'clamp(0.9rem, 2.5vw, 1.6rem)', fontWeight: 900, color: '#166534' }}>↩</div>
+              </>
+            )}
+            {square.type === 'jail' && (
+              <>
+                <div style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.7rem)', fontWeight: 800, color: '#92400e', textAlign: 'center', lineHeight: 1.1 }}>
+                  У НАЧА-ЛЬНИКА
+                </div>
+                {/* Решётка */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 3px) ', gap: '2px', padding: '2px' }}>
+                  {Array.from({length: 4}).map((_, i) => (
+                    <div key={i} style={{ width: 2, height: 'clamp(8px, 2vw, 16px)', background: '#92400e', borderRadius: 1 }} />
+                  ))}
+                </div>
+              </>
+            )}
+            {square.type === 'free_parking' && (
+              <>
+                <div style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.7rem)', fontWeight: 800, color: '#1e40af', textAlign: 'center', lineHeight: 1.1 }}>
+                  ПЕРЕКУР
+                </div>
+                <div style={{ fontSize: 'clamp(0.8rem, 2vw, 1.4rem)', color: '#1e40af', fontWeight: 900 }}>P</div>
+              </>
+            )}
+            {square.type === 'go_to_jail' && (
+              <>
+                <div style={{ fontSize: 'clamp(0.35rem, 1.1vw, 0.65rem)', fontWeight: 800, color: '#991b1b', textAlign: 'center', lineHeight: 1.1 }}>
+                  К НАЧА-ЛЬНИКУ!
+                </div>
+                <div style={{ fontSize: 'clamp(0.9rem, 2.5vw, 1.6rem)', color: '#991b1b', fontWeight: 900 }}>→</div>
+              </>
+            )}
+          </div>
+        )}
 
-          {/* Название */}
+        {/* Non-corner squares */}
+        {!isCorner && (
           <div
-            className="font-bold text-center text-slate-800 leading-tight"
+            className="flex flex-col items-center justify-center w-full h-full"
             style={{
-              fontSize: isCorner
-                ? 'clamp(0.5rem, 1.2vw, 0.8rem)'
-                : 'clamp(0.35rem, 0.9vw, 0.6rem)',
-              wordBreak: 'break-word',
-              hyphens: 'auto',
+              padding: colorBar
+                ? (side === 'bottom' ? '10px 2px 2px' :
+                   side === 'top'    ? '2px 2px 10px' :
+                   side === 'left'   ? '2px 10px 2px 2px' :
+                                       '2px 2px 2px 10px')
+                : '2px',
+              gap: 1,
             }}
           >
-            {square.name}
-          </div>
+            {/* Chance / Community */}
+            {(square.type === 'chance' || square.type === 'community_chest') && (
+              <div
+                className="font-black text-center"
+                style={{
+                  fontSize: 'clamp(0.8rem, 2.5vw, 1.6rem)',
+                  color: square.type === 'chance' ? '#c2410c' : '#7e22ce',
+                  lineHeight: 1,
+                }}
+              >
+                {square.type === 'chance' ? '?' : '!'}
+              </div>
+            )}
 
-          {/* Цена */}
-          {isOwnable && (
+            {/* Name */}
             <div
-              className="font-mono font-semibold text-slate-500"
-              style={{ fontSize: 'clamp(0.3rem, 0.75vw, 0.5rem)' }}
-            >
-              {(square as { price: number }).price.toLocaleString()}₸
-            </div>
-          )}
-
-          {/* Налог */}
-          {square.type === 'tax' && (
-            <div className="font-mono font-bold text-red-600" style={{ fontSize: 'clamp(0.3rem, 0.75vw, 0.5rem)' }}>
-              -{(square as { amount: number }).amount.toLocaleString()}₸
-            </div>
-          )}
-
-          {/* Владелец (точка) */}
-          {ownership?.owner_session_id && (
-            <div
-              className="rounded-full border border-white shadow-sm shrink-0"
+              className="text-center font-bold text-slate-800 leading-tight"
               style={{
-                width: 'clamp(4px, 1vw, 8px)',
-                height: 'clamp(4px, 1vw, 8px)',
-                backgroundColor: PLAYER_COLORS[
-                  players.find(p => p.session_id === ownership.owner_session_id)?.color ?? 'blue'
-                ],
+                fontSize: 'clamp(0.3rem, 0.8vw, 0.55rem)',
+                wordBreak: 'break-word',
+                hyphens: 'auto',
+                maxWidth: '100%',
               }}
-            />
-          )}
-        </div>
+            >
+              {square.name}
+            </div>
 
-        {/* Токены игроков */}
+            {/* Price */}
+            {price > 0 && (
+              <div
+                className="font-mono font-semibold text-slate-500 text-center"
+                style={{ fontSize: 'clamp(0.25rem, 0.65vw, 0.45rem)' }}
+              >
+                {price.toLocaleString()}₸
+              </div>
+            )}
+
+            {/* Tax amount */}
+            {square.type === 'tax' && (
+              <div
+                className="font-mono font-black text-red-600 text-center"
+                style={{ fontSize: 'clamp(0.3rem, 0.8vw, 0.5rem)' }}
+              >
+                −{(square as { amount: number }).amount.toLocaleString()}₸
+              </div>
+            )}
+
+            {/* Railroad icon: simple lines */}
+            {square.type === 'railroad' && (
+              <div className="flex gap-0.5">
+                {[1,2,3].map(i => (
+                  <div key={i} style={{ width: 'clamp(1px,0.3vw,2px)', height: 'clamp(4px,1vw,8px)', background: '#1e293b', borderRadius: 1 }} />
+                ))}
+              </div>
+            )}
+
+            {/* Owner dot */}
+            {ownerPlayer && (
+              <div
+                className="rounded-full"
+                style={{
+                  width: 'clamp(4px, 1vw, 7px)',
+                  height: 'clamp(4px, 1vw, 7px)',
+                  background: PLAYER_COLORS[ownerPlayer.color],
+                  boxShadow: `0 0 4px ${PLAYER_COLORS[ownerPlayer.color]}`,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Player tokens */}
         {playersHere.length > 0 && (
-          <div className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 flex-wrap pointer-events-none">
+          <div
+            className="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5 flex-wrap pointer-events-none"
+          >
             {playersHere.map(p => (
               <div
                 key={p.session_id}
-                className="rounded-full border border-white shadow-md"
-                style={{
-                  width: 'clamp(6px, 1.6vw, 12px)',
-                  height: 'clamp(6px, 1.6vw, 12px)',
-                  backgroundColor: PLAYER_COLORS[p.color],
-                }}
                 title={p.name}
+                className="rounded-full border-2 border-white shadow-md"
+                style={{
+                  width: 'clamp(7px, 1.8vw, 14px)',
+                  height: 'clamp(7px, 1.8vw, 14px)',
+                  background: PLAYER_COLORS[p.color],
+                  flexShrink: 0,
+                }}
               />
             ))}
           </div>
         )}
 
-        {/* Дома/отель */}
+        {/* Houses */}
         {ownership?.houses && ownership.houses > 0 && (
-          <div className="absolute top-0.5 right-0.5 text-[0.45rem] leading-none">
-            {ownership.houses >= 5 ? '🏨' : '🏠'.repeat(Math.min(ownership.houses, 4))}
+          <div className="absolute top-0.5 left-0.5 flex gap-0.5">
+            {Array.from({ length: Math.min(ownership.houses, 5) }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: 'clamp(3px, 0.8vw, 6px)',
+                  height: 'clamp(4px, 1vw, 8px)',
+                  background: ownership.houses >= 5 ? '#dc2626' : '#16a34a',
+                  borderRadius: 1,
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
 
       {showCard && isOwnable && (
-        <PropertyCard
-          square={square}
-          ownership={ownership}
-          players={players}
-          onClose={() => setShowCard(false)}
-        />
+        <PropertyCard square={square} ownership={ownership} players={players} onClose={() => setShowCard(false)} />
       )}
     </>
   );

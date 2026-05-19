@@ -106,8 +106,15 @@ export default function RoomPage({ params }: { params: Promise<{ code: string }>
     <div className="h-screen flex flex-col lg:flex-row overflow-hidden" style={{ backgroundColor: '#0a0f1e' }}>
 
       {/* Доска */}
-      <div className="flex-1 flex items-center justify-center p-3 sm:p-5 min-h-0">
-        <Board players={players} properties={properties} />
+      <div className="flex-1 flex items-center justify-center p-2 sm:p-4 min-h-0 overflow-hidden">
+        <Board
+          players={players}
+          properties={properties}
+          gameState={gameState}
+          myPlayer={myPlayer}
+          isMyTurn={isMyTurn}
+          onAction={handleAction}
+        />
       </div>
 
       {/* Правая панель */}
